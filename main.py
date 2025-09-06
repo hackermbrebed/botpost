@@ -43,7 +43,8 @@ def get_config():
         with open("config.json", "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        return {"videos": {}, "photo_id": None}
+        # Tambahkan welcome_message default jika file tidak ada
+        return {"videos": {}, "photo_id": None, "welcome_message": "❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini."}
 
 def save_config(config):
     """Menyimpan konfigurasi bot ke config.json."""
@@ -97,7 +98,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_subscribed, unsubscribed_channels = await check_subscription(context, user_id)
     
     if not is_subscribed:
-        message_text = "<blockquote>❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini.</blockquote>"
+        # Mengambil pesan dari config.json dan meng-escape-nya
+        welcome_message = config.get('welcome_message', '❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini.')
+        message_text = f"<blockquote>{html.escape(welcome_message)}</blockquote>"
+        
         keyboard_buttons = []
         for channel in unsubscribed_channels:
             if channel['id'] == CHANNEL1_ID:
@@ -145,6 +149,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if is_admin:
         help_message += "<b>Untuk Admin:</b>\n"
+        help_message += "<code>/setwelcome</code> - Mengatur pesan sambutan. Balas dengan teks baru.\n"
         help_message += "<code>/getprofil</code> - Mengatur gambar profil bot. Balas pesan dengan foto.\n"
         help_message += "<code>/addvideo &lt;nama_video&gt;</code> - Menyimpan video. Balas pesan dengan video.\n"
         help_message += "<code>/broadcast</code> - Mengirim pesan broadcast ke semua pengguna. Balas pesan dengan teks/media.\n"
@@ -152,6 +157,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"<blockquote>{help_message}</blockquote>", parse_mode=ParseMode.HTML)
 
 # Handler Admin (Perintah khusus Admin)
+async def set_welcome_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /setwelcome."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
+        return
+        
+    reply_message = update.message.reply_to_message
+    if not reply_message or not reply_message.text:
+        await update.message.reply_text("<blockquote>❌ Mohon balas pesan teks yang ingin Anda jadikan pesan sambutan.</blockquote>", parse_mode=ParseMode.HTML)
+        return
+
+    new_message = reply_message.text
+    config = get_config()
+    config["welcome_message"] = new_message
+    save_config(config)
+
+    await update.message.reply_text(f"<blockquote>✅ Pesan sambutan berhasil diubah menjadi:\n\n{html.escape(new_message)}</blockquote>", parse_mode=ParseMode.HTML)
+
 async def set_profile_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /getprofil."""
     if update.effective_user.id != ADMIN_ID:
@@ -238,7 +261,6 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(f"<blockquote>✅ Broadcast selesai!\n\n- Pesan terkirim: {sent_count}\n- Pengguna yang memblokir: {blocked_count}\n\nJumlah pengguna aktif saat ini: {len(user_ids)}</blockquote>", parse_mode=ParseMode.HTML)
 
-
 # Fungsi Utama
 def main():
     """Memulai bot."""
@@ -247,6 +269,7 @@ def main():
     # Menambahkan semua handler perintah
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("setwelcome", set_welcome_message_handler))
     application.add_handler(CommandHandler("getprofil", set_profile_photo_handler))
     application.add_handler(CommandHandler("addvideo", add_video_handler))
     application.add_handler(CommandHandler("broadcast", broadcast_command))
