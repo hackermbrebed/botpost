@@ -1,17 +1,20 @@
 import os
 import json
 import logging
-from pyrogram import Client, filters
-from pyrogram.enums import ChatMemberStatus
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+import html
 
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
+from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.constants import ParseMode, ChatMemberStatus
+
+# Konfigurasi logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Memuat variabel dari file .env
 from dotenv import load_dotenv
 load_dotenv()
 
-API_ID = os.getenv("API_ID")
-API_HASH = os.getenv("API_HASH")
+# Mengambil token bot dan ID dari variabel lingkungan
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
 CHANNEL1_ID = os.getenv("CHANNEL1_ID")
@@ -19,7 +22,8 @@ CHANNEL1_LINK = os.getenv("CHANNEL1_LINK")
 CHANNEL2_ID = os.getenv("CHANNEL2_ID")
 CHANNEL2_LINK = os.getenv("CHANNEL2_LINK")
 
-if not all([API_ID, API_HASH, BOT_TOKEN, ADMIN_ID, CHANNEL1_ID, CHANNEL1_LINK, CHANNEL2_ID, CHANNEL2_LINK]):
+# Validasi variabel lingkungan
+if not all([BOT_TOKEN, ADMIN_ID, CHANNEL1_ID, CHANNEL1_LINK, CHANNEL2_ID, CHANNEL2_LINK]):
     logging.error("❌ Pastikan semua variabel diisi di file .env.")
     exit()
 
@@ -31,14 +35,11 @@ except (ValueError, TypeError):
     logging.error("❌ ADMIN_ID, CHANNEL1_ID, atau CHANNEL2_ID tidak valid. Pastikan itu adalah angka.")
     exit()
 
-app = Client(
-    "fsub_bot",
-    api_id=int(API_ID),
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
+# ---
+## Fungsi dan Utilitas Konfigurasi
 
 def get_config():
+    """Membaca konfigurasi bot dari config.json."""
     try:
         with open("config.json", "r") as f:
             return json.load(f)
@@ -46,66 +47,43 @@ def get_config():
         return {"videos": {}, "photo_id": None}
 
 def save_config(config):
+    """Menyimpan konfigurasi bot ke config.json."""
     with open("config.json", "w") as f:
         json.dump(config, f, indent=4)
 
-async def check_subscription(client, user_id):
+async def check_subscription(context: ContextTypes.DEFAULT_TYPE, user_id: int):
+    """Memeriksa apakah pengguna berlangganan ke saluran yang diperlukan."""
     channels_to_check = [
         {"id": CHANNEL1_ID, "link": CHANNEL1_LINK},
         {"id": CHANNEL2_ID, "link": CHANNEL2_LINK}
     ]
     unsubscribed_channels = []
-    
+
     for channel in channels_to_check:
         try:
-            member = await client.get_chat_member(chat_id=channel['id'], user_id=user_id)
+            member: ChatMember = await context.bot.get_chat_member(chat_id=channel['id'], user_id=user_id)
             if member.status not in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
                 unsubscribed_channels.append(channel)
         except Exception as e:
-            logging.error(f"Error saat memeriksa langganan di channel {channel['id']}: {e}")
+            logging.error(f"Error checking subscription for channel {channel['id']}: {e}")
             unsubscribed_channels.append(channel)
-    
+
     return len(unsubscribed_channels) == 0, unsubscribed_channels
 
-@app.on_message(filters.user(ADMIN_ID) & filters.private & filters.command("getprofil", prefixes="/"))
-async def set_profile_photo_handler(client, message):
-    reply_message = message.reply_to_message
-    if not reply_message or not reply_message.photo:
-        await message.reply_text("❌ Reply gambar dan kirim perintah /getprofil untuk mengatur gambar profilnya nyet!")
-        return
-    file_id = reply_message.photo.file_id
-    config = get_config()
-    config["photo_id"] = file_id
-    save_config(config)
-    await message.reply_photo(photo=file_id, caption="> ✅ Gambar profil berhasil diatur nyet!", parse_mode='markdown')
+# ---
+## Handler Perintah Bot (Untuk Pengguna)
 
-@app.on_message(filters.user(ADMIN_ID) & filters.private & filters.command("addvideo", prefixes="/"))
-async def add_video_handler(client, message):
-    reply_message = message.reply_to_message
-    if not reply_message or not reply_message.video:
-        await message.reply_text("> ❌ Reply videonya dengan perintah ini nyett /addvideo <nama_video>.", parse_mode='markdown')
-        return
-    if len(message.command) < 2:
-        await message.reply_text("> ❌ Kasih nama untuk videonya nyett. Contoh: `/addvideo video_utama`", parse_mode='markdown')
-        return
-    parameter_name = message.command[1]
-    file_id = reply_message.video.file_id
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /start."""
     config = get_config()
-    config["videos"][parameter_name] = file_id
-    save_config(config)
-    await message.reply_text(f"> ✅ Video `{parameter_name}` telah disimpan! "
-                             f"\n> Bagikan dengan link: `https://t.me/{client.me.username}?start={parameter_name}`", parse_mode='markdown')
+    user_id = update.effective_user.id
+    start_parameter = context.args[0] if context.args else None
 
-@app.on_message(filters.command("start", prefixes="/"))
-async def start_command(client, message):
-    config = get_config()
-    user_id = message.from_user.id
-    start_parameter = message.command[1] if len(message.command) > 1 else None
-    
-    is_subscribed, unsubscribed_channels = await check_subscription(client, user_id)
+    is_subscribed, unsubscribed_channels = await check_subscription(context, user_id)
     
     if not is_subscribed:
-        pesan = "> ❌ Lu belum join ke channelnya nyett.\n\n> Join dulu biar gw bisa kirim videonya **GOBLOG**."
+        # Menggunakan \n sebagai ganti <br> untuk menghindari error parsing
+        message_text = "<blockquote>❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini.</blockquote>"
         keyboard_buttons = []
         for channel in unsubscribed_channels:
             if channel['id'] == CHANNEL1_ID:
@@ -113,38 +91,97 @@ async def start_command(client, message):
             elif channel['id'] == CHANNEL2_ID:
                 keyboard_buttons.append([InlineKeyboardButton("Gabung Channel 2", url=CHANNEL2_LINK)])
         
-        coba_lagi_link = f"https://t.me/{client.me.username}?start={start_parameter or ''}"
+        coba_lagi_link = f"https://t.me/{context.bot.username}?start={start_parameter or ''}"
         keyboard_buttons.append([InlineKeyboardButton("Coba Lagi", url=coba_lagi_link)])
         
         keyboard = InlineKeyboardMarkup(keyboard_buttons)
         photo_id = config.get("photo_id")
         
         if photo_id:
-            await message.reply_photo(photo=photo_id, caption=pesan, reply_markup=keyboard, parse_mode='markdown')
+            await update.message.reply_photo(photo=photo_id, caption=message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
         else:
-            await message.reply_text(pesan, reply_markup=keyboard, parse_mode='markdown')
+            await update.message.reply_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
     else:
         video_list = config.get("videos", {})
         
         if not start_parameter:
-            await message.reply_text("> ✅ Lu udah join. Sekarang gunakan link /start dengan parameter yang valid nyett.", parse_mode='markdown')
+            await update.message.reply_text("<blockquote>✅ Anda sudah bergabung. Gunakan link /start dengan parameter yang valid.</blockquote>", parse_mode=ParseMode.HTML)
             return
 
         video_to_send = video_list.get(start_parameter)
 
         if video_to_send:
             try:
-                await message.reply_video(video=video_to_send, caption="> ✅ Nontonnya sambil ngocok ya nyett awokaowk.", parse_mode='markdown')
+                caption_text = "<blockquote>✅ Selamat datang! Anda berhasil bergabung ke channel.</blockquote>"
+                await update.message.reply_video(video=video_to_send, caption=caption_text, parse_mode=ParseMode.HTML)
             except Exception as e:
-                await message.reply_text(f"> ❌ Terjadi eror nyett pada videonya: {e}", parse_mode='markdown')
+                await update.message.reply_text(f"<blockquote>❌ Terjadi kesalahan saat mengirim video: {html.escape(str(e))}</blockquote>", parse_mode=ParseMode.HTML)
         else:
-            await message.reply_text("> ✅ Lu udah join. Tapi, parameter video tidak valid.", parse_mode='markdown')
+            await update.message.reply_text("<blockquote>✅ Anda sudah bergabung. Namun, parameter video tidak valid.</blockquote>", parse_mode=ParseMode.HTML)
 
-@app.on_message(filters.command("myid", prefixes="/"))
-async def my_id_command(client, message):
-    user_id = message.from_user.id
-    await message.reply_text(f"> User ID Anda adalah: `{user_id}`", parse_mode='markdown')
+# ---
+## Handler Admin (Teks Sederhana, TANPA parse_mode)
+
+async def set_profile_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /getprofil."""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    
+    reply_message = update.message.reply_to_message
+    if not reply_message or not reply_message.photo:
+        await update.message.reply_text("Mohon balas sebuah gambar dengan perintah /getprofil untuk mengatur gambar profil.")
+        return
+    file_id = reply_message.photo[-1].file_id
+    config = get_config()
+    config["photo_id"] = file_id
+    save_config(config)
+    caption_text = "Gambar profil berhasil diatur!"
+    await update.message.reply_photo(photo=file_id, caption=caption_text)
+
+async def add_video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /addvideo."""
+    if update.effective_user.id != ADMIN_ID:
+        return
+        
+    reply_message = update.message.reply_to_message
+    if not reply_message or not reply_message.video:
+        await update.message.reply_text("Mohon balas video dengan perintah /addvideo <nama_video>.")
+        return
+    if not context.args:
+        await update.message.reply_text("Mohon berikan nama untuk video ini. Contoh: /addvideo video_utama")
+        return
+    parameter_name = context.args[0]
+    file_id = reply_message.video.file_id
+    config = get_config()
+    config["videos"][parameter_name] = file_id
+    save_config(config)
+    
+    bot_info = await context.bot.get_me()
+    bot_username = bot_info.username
+    message_text = f"Video {parameter_name} telah disimpan.\nBagikan dengan link: https://t.me/{bot_username}?start={parameter_name}"
+    await update.message.reply_text(message_text)
+
+async def my_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /myid."""
+    user_id = update.effective_user.id
+    message_text = f"User ID Anda adalah: {user_id}"
+    await update.message.reply_text(message_text)
+
+# ---
+## Fungsi Utama
+
+def main():
+    """Memulai bot."""
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # Menambahkan semua handler perintah
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("getprofil", set_profile_photo_handler))
+    application.add_handler(CommandHandler("addvideo", add_video_handler))
+    application.add_handler(CommandHandler("myid", my_id_command))
+
+    logging.info("🚀 Bot sedang berjalan...")
+    application.run_polling(poll_interval=1)
 
 if __name__ == "__main__":
-    logging.info("🚀 Bot sedang berjalan...")
-    app.run()
+    main()
