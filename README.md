@@ -1,2 +1,2 @@
-# fsubbot
-terserah kamu aja
+# FsubBot
+```Bot ini dikembangkan oleh @hackermbrebed```
