@@ -71,22 +71,22 @@ async def check_subscription(client, user_id):
 async def set_profile_photo_handler(client, message):
     reply_message = message.reply_to_message
     if not reply_message or not reply_message.photo:
-        await message.reply_text("❌ Mohon balas sebuah gambar dengan perintah /getprofil untuk mengatur gambar profil.")
+        await message.reply_text("❌ Reply gambar dan kirim perintah /getprofil untuk mengatur gambar profilnya nyet!")
         return
     file_id = reply_message.photo.file_id
     config = get_config()
     config["photo_id"] = file_id
     save_config(config)
-    await message.reply_photo(photo=file_id, caption="> ✅ Gambar profil berhasil diatur!", parse_mode='markdown')
+    await message.reply_photo(photo=file_id, caption="> ✅ Gambar profil berhasil diatur nyet!", parse_mode='markdown')
 
 @app.on_message(filters.user(ADMIN_ID) & filters.private & filters.command("addvideo", prefixes="/"))
 async def add_video_handler(client, message):
     reply_message = message.reply_to_message
     if not reply_message or not reply_message.video:
-        await message.reply_text("> ❌ Mohon balas video dengan perintah /addvideo <nama_video>.", parse_mode='markdown')
+        await message.reply_text("> ❌ Reply videonya dengan perintah ini nyett /addvideo <nama_video>.", parse_mode='markdown')
         return
     if len(message.command) < 2:
-        await message.reply_text("> ❌ Mohon berikan nama untuk video ini. Contoh: `/addvideo video_utama`", parse_mode='markdown')
+        await message.reply_text("> ❌ Kasih nama untuk videonya nyett. Contoh: `/addvideo video_utama`", parse_mode='markdown')
         return
     parameter_name = message.command[1]
     file_id = reply_message.video.file_id
@@ -105,7 +105,7 @@ async def start_command(client, message):
     is_subscribed, unsubscribed_channels = await check_subscription(client, user_id)
     
     if not is_subscribed:
-        pesan = "> ❌ Anda belum bergabung ke channel kami.\n\n> Silakan bergabung ke channel berikut untuk bisa menggunakan bot ini."
+        pesan = "> ❌ Lu belum join ke channelnya nyett.\n\n> Join dulu biar gw bisa kirim videonya **GOBLOG**."
         keyboard_buttons = []
         for channel in unsubscribed_channels:
             if channel['id'] == CHANNEL1_ID:
@@ -127,18 +127,18 @@ async def start_command(client, message):
         video_list = config.get("videos", {})
         
         if not start_parameter:
-            await message.reply_text("> ✅ Anda sudah bergabung. Gunakan link /start dengan parameter yang valid.", parse_mode='markdown')
+            await message.reply_text("> ✅ Lu udah join. Sekarang gunakan link /start dengan parameter yang valid nyett.", parse_mode='markdown')
             return
 
         video_to_send = video_list.get(start_parameter)
 
         if video_to_send:
             try:
-                await message.reply_video(video=video_to_send, caption="> ✅ Selamat datang! Anda berhasil bergabung ke channel.", parse_mode='markdown')
+                await message.reply_video(video=video_to_send, caption="> ✅ Nontonnya sambil ngocok ya nyett awokaowk.", parse_mode='markdown')
             except Exception as e:
-                await message.reply_text(f"> ❌ Terjadi kesalahan saat mengirim video: {e}", parse_mode='markdown')
+                await message.reply_text(f"> ❌ Terjadi eror nyett pada videonya: {e}", parse_mode='markdown')
         else:
-            await message.reply_text("> ✅ Anda sudah bergabung. Namun, parameter video tidak valid.", parse_mode='markdown')
+            await message.reply_text("> ✅ Lu udah join. Tapi, parameter video tidak valid.", parse_mode='markdown')
 
 @app.on_message(filters.command("myid", prefixes="/"))
 async def my_id_command(client, message):
