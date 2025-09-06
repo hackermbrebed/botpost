@@ -6,6 +6,7 @@ import html
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
 from telegram.ext import Application, CommandHandler, ContextTypes
 from telegram.constants import ParseMode, ChatMemberStatus
+from telegram.error import Forbidden
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -35,9 +36,7 @@ except (ValueError, TypeError):
     logging.error("❌ ADMIN_ID, CHANNEL1_ID, atau CHANNEL2_ID tidak valid. Pastikan itu adalah angka.")
     exit()
 
-# ---
-## Fungsi dan Utilitas Konfigurasi
-
+# Fungsi dan Utilitas Konfigurasi
 def get_config():
     """Membaca konfigurasi bot dari config.json."""
     try:
@@ -50,6 +49,19 @@ def save_config(config):
     """Menyimpan konfigurasi bot ke config.json."""
     with open("config.json", "w") as f:
         json.dump(config, f, indent=4)
+
+def get_user_ids():
+    """Membaca daftar ID pengguna dari user_ids.json."""
+    try:
+        with open("user_ids.json", "r") as f:
+            return set(json.load(f))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return set()
+
+def save_user_ids(user_ids):
+    """Menyimpan daftar ID pengguna ke user_ids.json."""
+    with open("user_ids.json", "w") as f:
+        json.dump(list(user_ids), f)
 
 async def check_subscription(context: ContextTypes.DEFAULT_TYPE, user_id: int):
     """Memeriksa apakah pengguna berlangganan ke saluran yang diperlukan."""
@@ -70,11 +82,14 @@ async def check_subscription(context: ContextTypes.DEFAULT_TYPE, user_id: int):
 
     return len(unsubscribed_channels) == 0, unsubscribed_channels
 
-# ---
-## Handler Perintah Bot (Untuk Pengguna)
-
+# Handler Perintah Bot (Untuk Semua Pengguna)
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /start."""
+    # Simpan ID pengguna untuk fitur broadcast
+    user_ids = get_user_ids()
+    user_ids.add(update.effective_user.id)
+    save_user_ids(user_ids)
+
     config = get_config()
     user_id = update.effective_user.id
     start_parameter = context.args[0] if context.args else None
@@ -82,7 +97,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_subscribed, unsubscribed_channels = await check_subscription(context, user_id)
     
     if not is_subscribed:
-        # Menggunakan \n sebagai ganti <br> untuk menghindari error parsing
         message_text = "<blockquote>❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini.</blockquote>"
         keyboard_buttons = []
         for channel in unsubscribed_channels:
@@ -119,36 +133,54 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await update.message.reply_text("<blockquote>✅ Anda sudah bergabung. Namun, parameter video tidak valid.</blockquote>", parse_mode=ParseMode.HTML)
 
-# ---
-## Handler Admin (Teks Sederhana, TANPA parse_mode)
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menampilkan daftar perintah yang tersedia."""
+    user_id = update.effective_user.id
+    is_admin = user_id == ADMIN_ID
+    
+    help_message = "<b>Daftar Perintah Bot:</b>\n\n"
+    help_message += "<b>Untuk Semua Pengguna:</b>\n"
+    help_message += "<code>/start</code> - Memulai bot dan memeriksa langganan channel.\n"
+    help_message += "<code>/help</code> - Menampilkan daftar perintah ini.\n\n"
 
+    if is_admin:
+        help_message += "<b>Untuk Admin:</b>\n"
+        help_message += "<code>/getprofil</code> - Mengatur gambar profil bot. Balas pesan dengan foto.\n"
+        help_message += "<code>/addvideo &lt;nama_video&gt;</code> - Menyimpan video. Balas pesan dengan video.\n"
+        help_message += "<code>/broadcast</code> - Mengirim pesan broadcast ke semua pengguna. Balas pesan dengan teks/media.\n"
+        
+    await update.message.reply_text(f"<blockquote>{help_message}</blockquote>", parse_mode=ParseMode.HTML)
+
+# Handler Admin (Perintah khusus Admin)
 async def set_profile_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /getprofil."""
     if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
         return
     
     reply_message = update.message.reply_to_message
     if not reply_message or not reply_message.photo:
-        await update.message.reply_text("Mohon balas sebuah gambar dengan perintah /getprofil untuk mengatur gambar profil.")
+        await update.message.reply_text("<blockquote>❌ Mohon balas sebuah gambar dengan perintah /getprofil untuk mengatur gambar profil.</blockquote>", parse_mode=ParseMode.HTML)
         return
     file_id = reply_message.photo[-1].file_id
     config = get_config()
     config["photo_id"] = file_id
     save_config(config)
-    caption_text = "Gambar profil berhasil diatur!"
-    await update.message.reply_photo(photo=file_id, caption=caption_text)
+    caption_text = "<blockquote>✅ Gambar profil berhasil diatur!</blockquote>"
+    await update.message.reply_photo(photo=file_id, caption=caption_text, parse_mode=ParseMode.HTML)
 
 async def add_video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /addvideo."""
     if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
         return
         
     reply_message = update.message.reply_to_message
     if not reply_message or not reply_message.video:
-        await update.message.reply_text("Mohon balas video dengan perintah /addvideo <nama_video>.")
+        await update.message.reply_text("<blockquote>❌ Mohon balas video dengan perintah /addvideo &lt;nama_video&gt;.</blockquote>", parse_mode=ParseMode.HTML)
         return
     if not context.args:
-        await update.message.reply_text("Mohon berikan nama untuk video ini. Contoh: /addvideo video_utama")
+        await update.message.reply_text("<blockquote>❌ Mohon berikan nama untuk video ini. Contoh: <code>/addvideo video_utama</code></blockquote>", parse_mode=ParseMode.HTML)
         return
     parameter_name = context.args[0]
     file_id = reply_message.video.file_id
@@ -158,28 +190,67 @@ async def add_video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     bot_info = await context.bot.get_me()
     bot_username = bot_info.username
-    message_text = f"Video {parameter_name} telah disimpan.\nBagikan dengan link: https://t.me/{bot_username}?start={parameter_name}"
-    await update.message.reply_text(message_text)
+    message_text = f"<blockquote>✅ Video <code>{html.escape(parameter_name)}</code> telah disimpan!\nBagikan dengan link: <code>https://t.me/{html.escape(bot_username)}?start={html.escape(parameter_name)}</code></blockquote>"
+    await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
 
-async def my_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Menangani perintah /myid."""
-    user_id = update.effective_user.id
-    message_text = f"User ID Anda adalah: {user_id}"
-    await update.message.reply_text(message_text)
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mengirim broadcast ke semua pengguna."""
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
+        return
 
-# ---
-## Fungsi Utama
+    reply_message = update.message.reply_to_message
+    if not reply_message:
+        await update.message.reply_text("<blockquote>❌ Mohon balas pesan yang ingin Anda broadcast.</blockquote>", parse_mode=ParseMode.HTML)
+        return
 
+    user_ids = get_user_ids()
+    sent_count = 0
+    blocked_count = 0
+    
+    logging.info(f"Memulai broadcast ke {len(user_ids)} pengguna...")
+
+    for user_id in list(user_ids):
+        try:
+            if reply_message.text:
+                await context.bot.send_message(
+                    chat_id=user_id,
+                    text=reply_message.text,
+                    parse_mode=reply_message.parse_mode
+                )
+            elif reply_message.photo:
+                await context.bot.send_photo(
+                    chat_id=user_id,
+                    photo=reply_message.photo[-1].file_id,
+                    caption=reply_message.caption,
+                    parse_mode=reply_message.parse_mode
+                )
+            # Tambahkan elif untuk jenis media lain (video, audio, dll.) jika diperlukan
+            sent_count += 1
+        except Forbidden:
+            logging.info(f"Pengguna {user_id} telah memblokir bot. Menghapus dari daftar.")
+            user_ids.remove(user_id)
+            blocked_count += 1
+        except Exception as e:
+            logging.error(f"Gagal mengirim pesan ke pengguna {user_id}: {e}")
+
+    save_user_ids(user_ids)
+    
+    await update.message.reply_text(f"<blockquote>✅ Broadcast selesai!\n\n- Pesan terkirim: {sent_count}\n- Pengguna yang memblokir: {blocked_count}\n\nJumlah pengguna aktif saat ini: {len(user_ids)}</blockquote>", parse_mode=ParseMode.HTML)
+
+
+# Fungsi Utama
 def main():
     """Memulai bot."""
     application = Application.builder().token(BOT_TOKEN).build()
     
     # Menambahkan semua handler perintah
     application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("getprofil", set_profile_photo_handler))
     application.add_handler(CommandHandler("addvideo", add_video_handler))
-    application.add_handler(CommandHandler("myid", my_id_command))
-
+    application.add_handler(CommandHandler("broadcast", broadcast_command))
+    
     logging.info("🚀 Bot sedang berjalan...")
     application.run_polling(poll_interval=1)
 
