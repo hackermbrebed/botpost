@@ -199,7 +199,7 @@ async def get_button_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     
     preview_message = f"<blockquote>✅ Pratinjau postingan:</blockquote>\n"
-    preview_message += f"<blockquote>{html.escape(context.user_data['message_text'])}</blockquote>"
+    preview_message += f"{html.escape(context.user_data['message_text'])}"
 
     await update.message.reply_text(
         preview_message,
