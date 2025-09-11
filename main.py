@@ -1,279 +1,292 @@
+# Copyright (c) 2024 Nama_Anda
+#
+# This script is licensed under the MIT License.
+# See the LICENSE file for details.
+#
+# MIT License
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 import os
 import json
 import logging
 import html
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ChatMember
-from telegram.ext import Application, CommandHandler, ContextTypes
-from telegram.constants import ParseMode, ChatMemberStatus
-from telegram.error import Forbidden
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler
+)
+from telegram.constants import ParseMode
+from telegram.error import BadRequest
+
+# Memuat variabel lingkungan dari file .env
+from dotenv import load_dotenv
+load_dotenv()
+
+# Mengambil token bot dari variabel lingkungan
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 # Konfigurasi logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Memuat variabel dari file .env
-from dotenv import load_dotenv
-load_dotenv()
+# Mendefinisikan status untuk ConversationHandler
+GET_POST_MESSAGE, ASK_BUTTONS, GET_BUTTON_TEXT, GET_BUTTON_LINK, CONFIRM_POSTING = range(5)
 
-# Mengambil token bot dan ID dari variabel lingkungan
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = os.getenv("ADMIN_ID")
-CHANNEL1_ID = os.getenv("CHANNEL1_ID")
-CHANNEL1_LINK = os.getenv("CHANNEL1_LINK")
-CHANNEL2_ID = os.getenv("CHANNEL2_ID")
-CHANNEL2_LINK = os.getenv("CHANNEL2_LINK")
-
-# Validasi variabel lingkungan
-if not all([BOT_TOKEN, ADMIN_ID, CHANNEL1_ID, CHANNEL1_LINK, CHANNEL2_ID, CHANNEL2_LINK]):
-    logging.error("❌ Pastikan semua variabel diisi di file .env.")
-    exit()
-
-try:
-    ADMIN_ID = int(ADMIN_ID.strip())
-    CHANNEL1_ID = int(CHANNEL1_ID.strip())
-    CHANNEL2_ID = int(CHANNEL2_ID.strip())
-except (ValueError, TypeError):
-    logging.error("❌ ADMIN_ID, CHANNEL1_ID, atau CHANNEL2_ID tidak valid. Pastikan itu adalah angka.")
-    exit()
-
-# Fungsi dan Utilitas Konfigurasi
+# --- Utilitas dan Konfigurasi ---
 def get_config():
-    """Membaca konfigurasi bot dari config.json."""
+    """Membaca konfigurasi bot dari bot_config.json."""
     try:
-        with open("config.json", "r") as f:
+        with open("bot_config.json", "r") as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        # Tambahkan welcome_message default jika file tidak ada
-        return {"videos": {}, "photo_id": None, "welcome_message": "❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini."}
+        # Mengembalikan struktur default jika file tidak ada atau rusak
+        return {
+            "admin_ids": [],
+            "channel_id": None
+        }
 
 def save_config(config):
-    """Menyimpan konfigurasi bot ke config.json."""
-    with open("config.json", "w") as f:
+    """Menyimpan konfigurasi bot ke bot_config.json."""
+    with open("bot_config.json", "w") as f:
         json.dump(config, f, indent=4)
 
-def get_user_ids():
-    """Membaca daftar ID pengguna dari user_ids.json."""
-    try:
-        with open("user_ids.json", "r") as f:
-            return set(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError):
-        return set()
-
-def save_user_ids(user_ids):
-    """Menyimpan daftar ID pengguna ke user_ids.json."""
-    with open("user_ids.json", "w") as f:
-        json.dump(list(user_ids), f)
-
-async def check_subscription(context: ContextTypes.DEFAULT_TYPE, user_id: int):
-    """Memeriksa apakah pengguna berlangganan ke saluran yang diperlukan."""
-    channels_to_check = [
-        {"id": CHANNEL1_ID, "link": CHANNEL1_LINK},
-        {"id": CHANNEL2_ID, "link": CHANNEL2_LINK}
-    ]
-    unsubscribed_channels = []
-
-    for channel in channels_to_check:
-        try:
-            member: ChatMember = await context.bot.get_chat_member(chat_id=channel['id'], user_id=user_id)
-            if member.status not in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.OWNER]:
-                unsubscribed_channels.append(channel)
-        except Exception as e:
-            logging.error(f"Error checking subscription for channel {channel['id']}: {e}")
-            unsubscribed_channels.append(channel)
-
-    return len(unsubscribed_channels) == 0, unsubscribed_channels
-
-# Handler Perintah Bot (Untuk Semua Pengguna)
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Menangani perintah /start."""
-    # Simpan ID pengguna untuk fitur broadcast
-    user_ids = get_user_ids()
-    user_ids.add(update.effective_user.id)
-    save_user_ids(user_ids)
-
+async def check_is_admin(update: Update):
+    """Memeriksa apakah pengguna yang menjalankan perintah adalah admin."""
     config = get_config()
-    user_id = update.effective_user.id
-    start_parameter = context.args[0] if context.args else None
+    return update.effective_user.id in config.get("admin_ids", [])
 
-    is_subscribed, unsubscribed_channels = await check_subscription(context, user_id)
-    
-    if not is_subscribed:
-        # Mengambil pesan dari config.json dan meng-escape-nya
-        welcome_message = config.get('welcome_message', '❌ Anda belum bergabung ke channel kami.\n\nSilakan bergabung ke channel berikut untuk bisa menggunakan bot ini.')
-        message_text = f"<blockquote>{html.escape(welcome_message)}</blockquote>"
-        
-        keyboard_buttons = []
-        for channel in unsubscribed_channels:
-            if channel['id'] == CHANNEL1_ID:
-                keyboard_buttons.append([InlineKeyboardButton("Gabung Channel 1", url=CHANNEL1_LINK)])
-            elif channel['id'] == CHANNEL2_ID:
-                keyboard_buttons.append([InlineKeyboardButton("Gabung Channel 2", url=CHANNEL2_LINK)])
-        
-        coba_lagi_link = f"https://t.me/{context.bot.username}?start={start_parameter or ''}"
-        keyboard_buttons.append([InlineKeyboardButton("Coba Lagi", url=coba_lagi_link)])
-        
-        keyboard = InlineKeyboardMarkup(keyboard_buttons)
-        photo_id = config.get("photo_id")
-        
-        if photo_id:
-            await update.message.reply_photo(photo=photo_id, caption=message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        else:
-            await update.message.reply_text(message_text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
-    else:
-        video_list = config.get("videos", {})
-        
-        if not start_parameter:
-            await update.message.reply_text("<blockquote>✅ Anda sudah bergabung. Gunakan link /start dengan parameter yang valid.</blockquote>", parse_mode=ParseMode.HTML)
-            return
-
-        video_to_send = video_list.get(start_parameter)
-
-        if video_to_send:
-            try:
-                caption_text = "<blockquote>✅ Selamat datang! Anda berhasil bergabung ke channel.</blockquote>"
-                await update.message.reply_video(video=video_to_send, caption=caption_text, parse_mode=ParseMode.HTML)
-            except Exception as e:
-                await update.message.reply_text(f"<blockquote>❌ Terjadi kesalahan saat mengirim video: {html.escape(str(e))}</blockquote>", parse_mode=ParseMode.HTML)
-        else:
-            await update.message.reply_text("<blockquote>✅ Anda sudah bergabung. Namun, parameter video tidak valid.</blockquote>", parse_mode=ParseMode.HTML)
-
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Menampilkan daftar perintah yang tersedia."""
-    user_id = update.effective_user.id
-    is_admin = user_id == ADMIN_ID
-    
-    help_message = "<b>Daftar Perintah Bot:</b>\n\n"
-    help_message += "<b>Untuk Semua Pengguna:</b>\n"
-    help_message += "<code>/start</code> - Memulai bot dan memeriksa langganan channel.\n"
-    help_message += "<code>/help</code> - Menampilkan daftar perintah ini.\n\n"
-
-    if is_admin:
-        help_message += "<b>Untuk Admin:</b>\n"
-        help_message += "<code>/setwelcome</code> - Mengatur pesan sambutan. Balas dengan teks baru.\n"
-        help_message += "<code>/getprofil</code> - Mengatur gambar profil bot. Balas pesan dengan foto.\n"
-        help_message += "<code>/addvideo &lt;nama_video&gt;</code> - Menyimpan video. Balas pesan dengan video.\n"
-        help_message += "<code>/broadcast</code> - Mengirim pesan broadcast ke semua pengguna. Balas pesan dengan teks/media.\n"
-        
-    await update.message.reply_text(f"<blockquote>{help_message}</blockquote>", parse_mode=ParseMode.HTML)
-
-# Handler Admin (Perintah khusus Admin)
-async def set_welcome_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Menangani perintah /setwelcome."""
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
-        return
-        
-    reply_message = update.message.reply_to_message
-    if not reply_message or not reply_message.text:
-        await update.message.reply_text("<blockquote>❌ Mohon balas pesan teks yang ingin Anda jadikan pesan sambutan.</blockquote>", parse_mode=ParseMode.HTML)
+# --- Handler Perintah Admin ---
+async def setup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /setup untuk mengatur admin pertama."""
+    config = get_config()
+    if config["admin_ids"]:
+        await update.message.reply_text("<blockquote>❌ Bot sudah diatur. Perintah ini hanya bisa digunakan sekali.</blockquote>", parse_mode=ParseMode.HTML)
         return
 
-    new_message = reply_message.text
-    config = get_config()
-    config["welcome_message"] = new_message
+    admin_id = update.effective_user.id
+    config["admin_ids"].append(admin_id)
     save_config(config)
 
-    await update.message.reply_text(f"<blockquote>✅ Pesan sambutan berhasil diubah menjadi:\n\n{html.escape(new_message)}</blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("<blockquote>✅ Pengaturan bot berhasil! Anda adalah admin sekarang.</blockquote>", parse_mode=ParseMode.HTML)
 
-async def set_profile_photo_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Menangani perintah /getprofil."""
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
-        return
-    
-    reply_message = update.message.reply_to_message
-    if not reply_message or not reply_message.photo:
-        await update.message.reply_text("<blockquote>❌ Mohon balas sebuah gambar dengan perintah /getprofil untuk mengatur gambar profil.</blockquote>", parse_mode=ParseMode.HTML)
-        return
-    file_id = reply_message.photo[-1].file_id
-    config = get_config()
-    config["photo_id"] = file_id
-    save_config(config)
-    caption_text = "<blockquote>✅ Gambar profil berhasil diatur!</blockquote>"
-    await update.message.reply_photo(photo=file_id, caption=caption_text, parse_mode=ParseMode.HTML)
-
-async def add_video_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Menangani perintah /addvideo."""
-    if update.effective_user.id != ADMIN_ID:
+async def set_channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Mengatur ID channel tujuan untuk postingan."""
+    if not await check_is_admin(update):
         await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
         return
         
-    reply_message = update.message.reply_to_message
-    if not reply_message or not reply_message.video:
-        await update.message.reply_text("<blockquote>❌ Mohon balas video dengan perintah /addvideo &lt;nama_video&gt;.</blockquote>", parse_mode=ParseMode.HTML)
-        return
     if not context.args:
-        await update.message.reply_text("<blockquote>❌ Mohon berikan nama untuk video ini. Contoh: <code>/addvideo video_utama</code></blockquote>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<blockquote>❌ Mohon sertakan ID channel. Contoh: <code>/setchannel -1001234567890</code></blockquote>", parse_mode=ParseMode.HTML)
         return
-    parameter_name = context.args[0]
-    file_id = reply_message.video.file_id
-    config = get_config()
-    config["videos"][parameter_name] = file_id
-    save_config(config)
-    
-    bot_info = await context.bot.get_me()
-    bot_username = bot_info.username
-    message_text = f"<blockquote>✅ Video <code>{html.escape(parameter_name)}</code> telah disimpan!\nBagikan dengan link: <code>https://t.me/{html.escape(bot_username)}?start={html.escape(parameter_name)}</code></blockquote>"
-    await update.message.reply_text(message_text, parse_mode=ParseMode.HTML)
 
-async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Mengirim broadcast ke semua pengguna."""
-    if update.effective_user.id != ADMIN_ID:
+    channel_id_str = context.args[0]
+    try:
+        channel_id = int(channel_id_str)
+        config = get_config()
+        config["channel_id"] = channel_id
+        save_config(config)
+
+        await context.bot.send_message(
+            chat_id=channel_id,
+            text="<blockquote>✅ Channel ini telah diatur sebagai channel postingan.</blockquote>",
+            parse_mode=ParseMode.HTML
+        )
+        await update.message.reply_text("<blockquote>✅ ID channel berhasil disimpan. Anda dapat mulai memposting.</blockquote>", parse_mode=ParseMode.HTML)
+    except (ValueError, BadRequest):
+        await update.message.reply_text("<blockquote>❌ ID channel tidak valid atau bot tidak memiliki izin posting di sana. Pastikan ID channel diawali dengan <code>-100</code> dan bot adalah admin.</blockquote>", parse_mode=ParseMode.HTML)
+
+# --- Fungsi-fungsi ConversationHandler ---
+async def start_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Memulai alur posting interaktif."""
+    if not await check_is_admin(update):
         await update.message.reply_text("<blockquote>❌ Perintah ini hanya untuk admin.</blockquote>", parse_mode=ParseMode.HTML)
-        return
+        return ConversationHandler.END
 
-    reply_message = update.message.reply_to_message
-    if not reply_message:
-        await update.message.reply_text("<blockquote>❌ Mohon balas pesan yang ingin Anda broadcast.</blockquote>", parse_mode=ParseMode.HTML)
-        return
+    config = get_config()
+    if not config.get("channel_id"):
+        await update.message.reply_text("<blockquote>❌ Mohon atur ID channel terlebih dahulu dengan perintah <code>/setchannel</code>.</blockquote>", parse_mode=ParseMode.HTML)
+        return ConversationHandler.END
 
-    user_ids = get_user_ids()
-    sent_count = 0
-    blocked_count = 0
+    await update.message.reply_text("<blockquote>✍️ Silakan kirim pesan yang akan diposting.</blockquote>", parse_mode=ParseMode.HTML)
+    return GET_POST_MESSAGE
+
+async def get_post_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menerima teks postingan dan meminta detail tombol."""
+    if not update.message.text:
+        await update.message.reply_text("<blockquote>❌ Mohon kirim teks, bukan media.</blockquote>", parse_mode=ParseMode.HTML)
+        return GET_POST_MESSAGE
+
+    context.user_data['message_text'] = update.message.text
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Tambah Tombol", callback_data='add_button')],
+        [InlineKeyboardButton("Lanjut Tanpa Tombol", callback_data='no_button')],
+        [InlineKeyboardButton("❌ Batalkan", callback_data='cancel_post')]
+    ])
     
-    logging.info(f"Memulai broadcast ke {len(user_ids)} pengguna...")
+    await update.message.reply_text(
+        "<blockquote>Pesan berhasil disimpan. Sekarang pilih salah satu opsi.</blockquote>",
+        reply_markup=keyboard,
+        parse_mode=ParseMode.HTML
+    )
+    return ASK_BUTTONS
 
-    for user_id in list(user_ids):
-        try:
-            if reply_message.text:
-                await context.bot.send_message(
-                    chat_id=user_id,
-                    text=reply_message.text,
-                    parse_mode=reply_message.parse_mode
-                )
-            elif reply_message.photo:
-                await context.bot.send_photo(
-                    chat_id=user_id,
-                    photo=reply_message.photo[-1].file_id,
-                    caption=reply_message.caption,
-                    parse_mode=reply_message.parse_mode
-                )
-            # Tambahkan elif untuk jenis media lain (video, audio, dll.) jika diperlukan
-            sent_count += 1
-        except Forbidden:
-            logging.info(f"Pengguna {user_id} telah memblokir bot. Menghapus dari daftar.")
-            user_ids.remove(user_id)
-            blocked_count += 1
-        except Exception as e:
-            logging.error(f"Gagal mengirim pesan ke pengguna {user_id}: {e}")
+async def handle_button_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani pilihan pengguna untuk menambah tombol atau tidak."""
+    query = update.callback_query
+    await query.answer()
 
-    save_user_ids(user_ids)
+    choice = query.data
     
-    await update.message.reply_text(f"<blockquote>✅ Broadcast selesai!\n\n- Pesan terkirim: {sent_count}\n- Pengguna yang memblokir: {blocked_count}\n\nJumlah pengguna aktif saat ini: {len(user_ids)}</blockquote>", parse_mode=ParseMode.HTML)
+    if choice == 'add_button':
+        await query.edit_message_text(
+            "<blockquote>✍️ Silakan kirim teks untuk tombol.</blockquote>",
+            parse_mode=ParseMode.HTML
+        )
+        return GET_BUTTON_TEXT
+    
+    elif choice == 'no_button':
+        # Langsung konfirmasi dan posting tanpa tombol
+        await confirm_post(update, context, has_button=False)
+        return ConversationHandler.END
+        
+    elif choice == 'cancel_post':
+        return await cancel_post(update, context)
 
-# Fungsi Utama
+async def get_button_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menerima teks tombol dari pengguna."""
+    if not update.message.text:
+        await update.message.reply_text("<blockquote>❌ Mohon kirim teks yang valid.</blockquote>", parse_mode=ParseMode.HTML)
+        return GET_BUTTON_TEXT
+
+    context.user_data['button_text'] = update.message.text
+    await update.message.reply_text(
+        "<blockquote>🔗 Bagus. Sekarang kirimkan URL untuk tombol.</blockquote>",
+        parse_mode=ParseMode.HTML
+    )
+    return GET_BUTTON_LINK
+
+async def get_button_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menerima URL tombol dan menampilkan pratinjau dengan tombol konfirmasi."""
+    button_url = update.message.text
+    context.user_data['button_url'] = button_url
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Ya, Post!", callback_data='final_confirm')],
+        [InlineKeyboardButton("Batalkan", callback_data='cancel_post')]
+    ])
+    
+    preview_message = f"<blockquote>✅ Pratinjau postingan:</blockquote>\n"
+    preview_message += f"<blockquote>{html.escape(context.user_data['message_text'])}</blockquote>"
+
+    await update.message.reply_text(
+        preview_message,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton(context.user_data['button_text'], url=button_url)]]),
+        parse_mode=ParseMode.HTML
+    )
+    await update.message.reply_text(
+        "<blockquote>Apakah Anda yakin ingin memposting ini?</blockquote>",
+        reply_markup=keyboard,
+        parse_mode=ParseMode.HTML
+    )
+
+    return CONFIRM_POSTING
+
+async def confirm_post(update: Update, context: ContextTypes.DEFAULT_TYPE, has_button=True):
+    """Mengonfirmasi dan memposting pesan ke channel."""
+    query = update.callback_query
+    await query.answer()
+
+    config = get_config()
+    channel_id = config.get("channel_id")
+
+    message_to_post = f"<blockquote>{html.escape(context.user_data['message_text'])}</blockquote>"
+    
+    keyboard = None
+    if has_button:
+        button_text = context.user_data['button_text']
+        button_url = context.user_data['button_url']
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(button_text, url=button_url)]])
+
+    try:
+        await context.bot.send_message(
+            chat_id=channel_id,
+            text=message_to_post,
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+        await query.edit_message_text("<blockquote>✅ Postingan berhasil dikirim ke channel.</blockquote>", parse_mode=ParseMode.HTML)
+    except Exception as e:
+        logging.error(f"Gagal memposting ke channel: {e}")
+        await query.edit_message_text(f"<blockquote>❌ Gagal memposting. Mohon cek ID channel atau izin bot. Error: {html.escape(str(e))}</blockquote>", parse_mode=ParseMode.HTML)
+    
+    return ConversationHandler.END
+
+async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Membatalkan alur posting."""
+    if isinstance(update.callback_query, type(None)):
+        await update.message.reply_text("<blockquote>✅ Postingan dibatalkan.</blockquote>", parse_mode=ParseMode.HTML)
+    else:
+        query = update.callback_query
+        await query.answer()
+        await query.edit_message_text("<blockquote>✅ Postingan dibatalkan.</blockquote>", parse_mode=ParseMode.HTML)
+    return ConversationHandler.END
+
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Menangani perintah /start untuk menampilkan panduan."""
+    message = "<blockquote><b>📢 Selamat datang! Bot ini membantu Anda memposting ke channel.\n\n📄 Panduan :</b></blockquote>\n"
+    message += "<blockquote>👤 Atur diri Anda sebagai admin dengan <i>/setup</i>.\n⚙️ Atur channel postingan dengan <i>/setchannel &lt;ID_CHANNEL&gt;</i>.\n✍️ Mulai proses posting dengan <i>/post</i>.\n🔥 Ikuti petunjuk interaktif yang diberikan bot melalui tombol.</blockquote>\n"
+    await update.message.reply_text(message, parse_mode=ParseMode.HTML)
+
+
+# --- Fungsi Utama ---
 def main():
     """Memulai bot."""
+    if not BOT_TOKEN:
+        logging.error("❌ BOT_TOKEN tidak ditemukan. Mohon atur di file .env.")
+        return
+
     application = Application.builder().token(BOT_TOKEN).build()
-    
-    # Menambahkan semua handler perintah
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler("post", start_post)],
+        states={
+            GET_POST_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_post_message)],
+            ASK_BUTTONS: [CallbackQueryHandler(handle_button_choice, pattern='^add_button$|^no_button$|^cancel_post$')],
+            GET_BUTTON_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_button_text)],
+            GET_BUTTON_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_button_link)],
+            CONFIRM_POSTING: [CallbackQueryHandler(confirm_post, pattern='^final_confirm$')],
+        },
+        fallbacks=[CommandHandler("cancel", cancel_post), CallbackQueryHandler(cancel_post, pattern='^cancel_post$')],
+    )
+
+    application.add_handler(CommandHandler("setup", setup_command))
+    application.add_handler(conv_handler)
     application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("setwelcome", set_welcome_message_handler))
-    application.add_handler(CommandHandler("getprofil", set_profile_photo_handler))
-    application.add_handler(CommandHandler("addvideo", add_video_handler))
-    application.add_handler(CommandHandler("broadcast", broadcast_command))
-    
+    application.add_handler(CommandHandler("setchannel", set_channel_id))
+
     logging.info("🚀 Bot sedang berjalan...")
     application.run_polling(poll_interval=1)
 
