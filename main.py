@@ -1,4 +1,4 @@
-# Copyright (c) 2024 Nama_Anda
+# Copyright (c) 2024 Hacker_Mbrebed
 #
 # This script is licensed under the MIT License.
 # See the LICENSE file for details.
@@ -150,9 +150,9 @@ async def get_post_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['message_text'] = update.message.text
     
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Tambah Tombol", callback_data='add_button')],
-        [InlineKeyboardButton("Lanjut Tanpa Tombol", callback_data='no_button')],
-        [InlineKeyboardButton("❌ Batalkan", callback_data='cancel_post')]
+        [InlineKeyboardButton("✅ 𝐓𝐚𝐦𝐛𝐚𝐡 𝐓𝐨𝐦𝐛𝐨𝐥", callback_data='add_button')],
+        [InlineKeyboardButton("❌ 𝐋𝐚𝐧𝐣𝐮𝐭 𝐓𝐚𝐧𝐩𝐚 𝐓𝐨𝐦𝐛𝐨𝐥", callback_data='no_button')],
+        [InlineKeyboardButton("𝐁𝐚𝐭𝐚𝐥 𝐏𝐨𝐬𝐭", callback_data='cancel_post')]
     ])
     
     await update.message.reply_text(
@@ -212,8 +212,8 @@ async def handle_button_choice(update: Update, context: ContextTypes.DEFAULT_TYP
         
         # Tombol konfirmasi akhir
         confirm_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Ya, Post!", callback_data='final_confirm_post')],
-            [InlineKeyboardButton("❌ Batalkan", callback_data='cancel_post')]
+            [InlineKeyboardButton("✅ 𝐘𝐚, 𝐏𝐨𝐬𝐭!", callback_data='final_confirm_post')],
+            [InlineKeyboardButton("❌ 𝐁𝐚𝐭𝐚𝐥𝐤𝐚𝐧", callback_data='cancel_post')]
         ])
         
         # Membangun keyboard pratinjau dalam tata letak 2x2
