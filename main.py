@@ -82,14 +82,14 @@ async def setup_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /setup untuk mengatur admin pertama."""
     config = get_config()
     if config["admin_ids"]:
-        await update.message.reply_text("<blockquote>❌ Bot sudah diatur. Perintah ini hanya bisa digunakan sekali.</blockquote>", parse_mode=ParseMode.HTML)
+        await update.message.reply_text("<blockquote>❌ 𝟺𝟶𝟺 𝙽𝚘𝚝 𝙵𝚘𝚞𝚗𝚍</blockquote>", parse_mode=ParseMode.HTML)
         return
 
     admin_id = update.effective_user.id
     config["admin_ids"].append(admin_id)
     save_config(config)
 
-    await update.message.reply_text("<blockquote>✅ Pengaturan bot berhasil! Anda adalah admin sekarang.</blockquote>", parse_mode=ParseMode.HTML)
+    await update.message.reply_text("<blockquote>✅ 𝐒𝐞𝐥𝐚𝐦𝐚𝐭! 𝐋𝐮 𝐮𝐝𝐚𝐡 𝐣𝐚𝐝𝐢 𝐚𝐝𝐦𝐢𝐧 𝐬𝐞𝐤𝐚𝐫𝐚𝐧𝐠.\n\n𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘣𝘰𝘵 𝘣𝘺 𝕂𝕒𝕚𝕤𝕒𝕣 𝕌𝕕𝕚𝕟👑</blockquote>", parse_mode=ParseMode.HTML)
 
 async def set_channel_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Mengatur ID channel tujuan untuk postingan."""
@@ -150,9 +150,9 @@ async def get_post_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['message_text'] = update.message.text
     
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ 𝐓𝐚𝐦𝐛𝐚𝐡 𝐓𝐨𝐦𝐛𝐨𝐥", callback_data='add_button')],
-        [InlineKeyboardButton("❌ 𝐋𝐚𝐧𝐣𝐮𝐭 𝐓𝐚𝐧𝐩𝐚 𝐓𝐨𝐦𝐛𝐨𝐥", callback_data='no_button')],
-        [InlineKeyboardButton("𝐁𝐚𝐭𝐚𝐥 𝐏𝐨𝐬𝐭", callback_data='cancel_post')]
+        [InlineKeyboardButton("🕹️ 𝐓𝐚𝐦𝐛𝐚𝐡 𝐓𝐨𝐦𝐛𝐨𝐥", callback_data='add_button')],
+        [InlineKeyboardButton("⛔ 𝐋𝐚𝐧𝐣𝐮𝐭 𝐓𝐚𝐧𝐩𝐚 𝐓𝐨𝐦𝐛𝐨𝐥", callback_data='no_button')],
+        [InlineKeyboardButton("❌ 𝐁𝐚𝐭𝐚𝐥 𝐏𝐨𝐬𝐭", callback_data='cancel_post')]
     ])
     
     await update.message.reply_text(
@@ -172,11 +172,11 @@ async def handle_button_choice(update: Update, context: ContextTypes.DEFAULT_TYP
     if choice == 'add_button':
         # Mengubah keyboard untuk menampilkan 4 pilihan tombol dalam layout 2x2
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Tombol 1", callback_data='button_1'),
-             InlineKeyboardButton("Tombol 2", callback_data='button_2')],
-            [InlineKeyboardButton("Tombol 3", callback_data='button_3'),
-             InlineKeyboardButton("Tombol 4", callback_data='button_4')],
-            [InlineKeyboardButton("Lanjut ke Konfirmasi", callback_data='final_confirm')]
+            [InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟏", callback_data='button_1'),
+             InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟐", callback_data='button_2')],
+            [InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟑", callback_data='button_3'),
+             InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟒", callback_data='button_4')],
+            [InlineKeyboardButton("🅺🅾🅽🅵🅸🆁🅼🅰🆂🅸", callback_data='final_confirm')]
         ])
         await query.edit_message_text(
             "<blockquote>Pilih tombol yang ingin Anda atur.</blockquote>",
@@ -271,11 +271,11 @@ async def get_button_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 final_keyboard_buttons.append(InlineKeyboardButton(btn['text'], url=btn['url']))
 
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Tombol 1", callback_data='button_1'),
-             InlineKeyboardButton("Tombol 2", callback_data='button_2')],
-            [InlineKeyboardButton("Tombol 3", callback_data='button_3'),
-             InlineKeyboardButton("Tombol 4", callback_data='button_4')],
-            [InlineKeyboardButton("Lanjut ke Konfirmasi", callback_data='final_confirm')]
+            [InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟏", callback_data='button_1'),
+             InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟐", callback_data='button_2')],
+            [InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟑", callback_data='button_3'),
+             InlineKeyboardButton("𝐓𝐨𝐦𝐛𝐨𝐥 𝟒", callback_data='button_4')],
+            [InlineKeyboardButton("🅺🅾🅽🅵🅸🆁🅼🅰🆂🅸", callback_data='final_confirm')]
         ])
 
         await update.message.reply_text(
@@ -314,7 +314,7 @@ async def confirm_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         if not channel_ids:
-             raise ValueError("Tidak ada ID channel yang diatur. Mohon gunakan /setchannel terlebih dahulu.")
+             raise ValueError("Tidak ada ID channel yang diatur. Mohon gunakan perintah <i>/setchannel</i> terlebih dahulu.")
 
         for channel_id in channel_ids:
             await context.bot.send_message(
@@ -339,8 +339,8 @@ async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /start untuk menampilkan panduan."""
-    message = "<blockquote><b>📢 Selamat datang! Bot ini membantu Anda memposting ke channel.\n\n📄 Panduan :</b></blockquote>\n"
-    message += "<blockquote>👤 Atur diri Anda sebagai admin dengan <i>/setup</i>.\n⚙️ Atur channel postingan dengan <i>/setchannel &lt;ID_CHANNEL&gt;</i>.\n✍️ Mulai proses posting dengan <i>/post</i>.\n🔥 Ikuti petunjuk interaktif yang diberikan bot melalui tombol.</blockquote>\n"
+    message = "<blockquote><b>📢 𝐒𝐞𝐥𝐚𝐦𝐚𝐭 𝐝𝐚𝐭𝐚𝐧𝐠! 𝐁𝐨𝐭 𝐢𝐧𝐢 𝐦𝐞𝐦𝐛𝐚𝐧𝐭𝐮 𝐀𝐧𝐝𝐚 𝐦𝐞𝐦𝐩𝐨𝐬𝐭𝐢𝐧𝐠 𝐤𝐞 𝐜𝐡𝐚𝐧𝐧𝐞𝐥.\n\n📄 𝙋𝙖𝙣𝙙𝙪𝙖𝙣 :</b></blockquote>\n"
+    message += "👤 𝐀𝐭𝐮𝐫 𝐝𝐢𝐫𝐢 𝐀𝐧𝐝𝐚 𝐬𝐞𝐛𝐚𝐠𝐚𝐢 𝐚𝐝𝐦𝐢𝐧 𝐝𝐞𝐧𝐠𝐚𝐧 <i>/setup</i>.\n⚙️ 𝐀𝐭𝐮𝐫 𝐜𝐡𝐚𝐧𝐧𝐞𝐥 𝐩𝐨𝐬𝐭𝐢𝐧𝐠𝐚𝐧 𝐝𝐞𝐧𝐠𝐚𝐧 <i>/setchannel ID_CHANNEL</i>.\n✍️ 𝐌𝐮𝐥𝐚𝐢 𝐩𝐫𝐨𝐬𝐞𝐬 𝐩𝐨𝐬𝐭𝐢𝐧𝐠 𝐝𝐞𝐧𝐠𝐚𝐧 <i>/post</i>.\n🔥 𝐈𝐤𝐮𝐭𝐢 𝐢𝐧𝐬𝐭𝐫𝐮𝐤𝐬𝐢 𝐲𝐚𝐧𝐠 𝐝𝐢𝐛𝐞𝐫𝐢𝐤𝐚𝐧 𝐛𝐨𝐭.\n\n<blockquote>𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘣𝘰𝘵 𝘣𝘺 𝕂𝕒𝕚𝕤𝕒𝕣 𝕌𝕕𝕚𝕟👑</blockquote>"
     await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
 
