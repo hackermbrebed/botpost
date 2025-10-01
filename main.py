@@ -339,7 +339,7 @@ async def cancel_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Menangani perintah /start untuk menampilkan panduan."""
-    message = "<blockquote><b>📢 𝐒𝐞𝐥𝐚𝐦𝐚𝐭 𝐝𝐚𝐭𝐚𝐧𝐠! 𝐁𝐨𝐭 𝐢𝐧𝐢 𝐦𝐞𝐦𝐛𝐚𝐧𝐭𝐮 𝐀𝐧𝐝𝐚 𝐦𝐞𝐦𝐩𝐨𝐬𝐭𝐢𝐧𝐠 𝐤𝐞 𝐜𝐡𝐚𝐧𝐧𝐞𝐥.\n\n📄 𝙋𝙖𝙣𝙙𝙪𝙖𝙣 :</b></blockquote>\n"
+    message = "<blockquote><b>📢 𝐒𝐞𝐥𝐚𝐦𝐚𝐭 𝐝𝐚𝐭𝐚𝐧𝐠! 𝐁𝐨𝐭 𝐢𝐧𝐢 𝐦𝐞𝐦𝐛𝐚𝐧𝐭𝐮 𝐀𝐧𝐝𝐚 𝐦𝐞𝐦𝐩𝐨𝐬𝐭𝐢𝐧𝐠 𝐤𝐞 𝐜𝐡𝐚𝐧𝐧𝐞𝐥.</b></blockquote>\n\n📄 𝙋𝙖𝙣𝙙𝙪𝙖𝙣 :\n"
     message += "👤 𝐀𝐭𝐮𝐫 𝐝𝐢𝐫𝐢 𝐀𝐧𝐝𝐚 𝐬𝐞𝐛𝐚𝐠𝐚𝐢 𝐚𝐝𝐦𝐢𝐧 𝐝𝐞𝐧𝐠𝐚𝐧 <i>/setup</i>.\n⚙️ 𝐀𝐭𝐮𝐫 𝐜𝐡𝐚𝐧𝐧𝐞𝐥 𝐩𝐨𝐬𝐭𝐢𝐧𝐠𝐚𝐧 𝐝𝐞𝐧𝐠𝐚𝐧 <i>/setchannel ID_CHANNEL</i>.\n✍️ 𝐌𝐮𝐥𝐚𝐢 𝐩𝐫𝐨𝐬𝐞𝐬 𝐩𝐨𝐬𝐭𝐢𝐧𝐠 𝐝𝐞𝐧𝐠𝐚𝐧 <i>/post</i>.\n🔥 𝐈𝐤𝐮𝐭𝐢 𝐢𝐧𝐬𝐭𝐫𝐮𝐤𝐬𝐢 𝐲𝐚𝐧𝐠 𝐝𝐢𝐛𝐞𝐫𝐢𝐤𝐚𝐧 𝐛𝐨𝐭.\n\n<blockquote>𝘗𝘰𝘸𝘦𝘳𝘦𝘥 𝘣𝘰𝘵 𝘣𝘺 𝕂𝕒𝕚𝕤𝕒𝕣 𝕌𝕕𝕚𝕟👑</blockquote>"
     await update.message.reply_text(message, parse_mode=ParseMode.HTML)
 
